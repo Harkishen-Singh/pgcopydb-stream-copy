@@ -29,7 +29,7 @@ func main() {
 		panic(err)
 	}
 
-	pool := getPgxPool(uri, 1, 10)
+	pool := getPgxPool(uri, 1, 1)
 	defer pool.Close()
 	testConn(pool)
 
