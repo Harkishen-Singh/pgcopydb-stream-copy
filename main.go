@@ -141,17 +141,33 @@ func main() {
 			column_name[txn_row_column] = row_column
 		case "C":
 			log.Debug("msg", "inserting", "table", fmt.Sprintf("%s.%s", schema_name, table_name), "column_names", txn_row_column, "num_rows", len(column_values))
-			rows, err := pool.CopyFrom(
-				context.Background(),
-				pgx.Identifier{schema_name, table_name},
-				column_name[txn_row_column],
-				pgx.CopyFromRows(column_values),
-			)
+			query := "insert into %s (%s) values "
+			query = fmt.Sprintf(query, pgx.Identifier{schema_name, table_name}.Sanitize(), txn_row_column)
+
+			// apply the rows
+			counter := 1
+			val := []interface{}{}
+			for i := range column_values {
+				query += " ( "
+				for j := range column_values[i] {
+					val = append(val, column_values[i][j])
+					query += fmt.Sprintf("$%d", counter)
+					counter++
+					if j < len(column_values[i]) - 1 {
+						query += ", "
+					}
+				}
+				query += " ) "
+				if i < len(column_values) - 1 {
+					query += ","
+				}
+			}
+			_, err := pool.Exec(context.Background(), query, val...)
 			if err != nil {
 				panic(err)
 			}
 			txnCount++
-			log.Info("msg", "inserted rows", "txn_count", txnCount, "table", fmt.Sprintf("%s.%s", schema_name, table_name), "rows", rows, "pending", len(column_values)-int(rows))
+			log.Info("msg", "inserted rows", "txn_count", txnCount, "table", fmt.Sprintf("%s.%s", schema_name, table_name))
 			refresh()
 		case "K":
 			// ignore
